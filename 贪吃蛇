@@ -1,0 +1,135 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <conio.h>
+#include <windows.h>
+#include <cstdlib>
+#include <ctime>
+using namespace std;
+
+const int W = 20, H = 15;
+
+struct Point { int x, y; };
+
+vector<Point> snake;
+Point food;
+int dir;            // 0上 1右 2下 3左
+int score;
+bool gameOver;
+
+int dx[] = {0, 1, 0, -1};
+int dy[] = {-1, 0, 1, 0};
+
+HANDLE hConsole;    // 控制台句柄，用于定位光标
+
+// 隐藏光标，消除闪烁感
+void hideCursor() {
+    CONSOLE_CURSOR_INFO info;
+    info.dwSize = 100;
+    info.bVisible = FALSE;
+    SetConsoleCursorInfo(hConsole, &info);
+}
+
+void init() {
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    hideCursor();
+
+    snake = {{W/2, H/2}, {W/2 - 1, H/2}, {W/2 - 2, H/2}};
+    dir = 1;
+    score = 0;
+    gameOver = false;
+
+    srand((unsigned)time(0));
+    food = {rand() % W, rand() % H};
+}
+
+// 双缓冲绘制：先拼字符串，再一次性输出
+void draw() {
+    string buf;
+    buf.reserve((W + 3) * (H + 4));   // 预留空间，减少扩容
+
+    // 上边框
+    buf += '+';
+    for (int x = 0; x < W; ++x) buf += '-';
+    buf += "+\n";
+
+    // 中间地图
+    for (int y = 0; y < H; ++y) {
+        buf += '|';                    // 左边框
+        for (int x = 0; x < W; ++x) {
+            bool isSnake = false;
+            for (auto& s : snake)
+                if (s.x == x && s.y == y) { isSnake = true; break; }
+
+            if (isSnake)                 buf += 'O';
+            else if (food.x == x && food.y == y) buf += '*';
+            else                         buf += ' ';
+        }
+        buf += "|\n";                  // 右边框
+    }
+
+    // 下边框
+    buf += '+';
+    for (int x = 0; x < W; ++x) buf += '-';
+    buf += "+\n";
+
+    // 分数
+    buf += "得分: " + to_string(score) + "    \n";
+
+    // 光标回左上角，一次性输出
+    SetConsoleCursorPosition(hConsole, {0, 0});
+    cout << buf;
+}
+
+void update() {
+    Point head = snake.front();
+    head.x += dx[dir];
+    head.y += dy[dir];
+
+    // 撞墙
+    if (head.x < 0 || head.x >= W || head.y < 0 || head.y >= H) {
+        gameOver = true; return;
+    }
+    // 撞自己
+    for (auto& s : snake)
+        if (s.x == head.x && s.y == head.y) { gameOver = true; return; }
+
+    snake.insert(snake.begin(), head);
+
+    // 吃到食物
+    if (head.x == food.x && head.y == food.y) {
+        score++;
+        do {
+            food = {rand() % W, rand() % H};
+        } while ([&]{
+            for (auto& s : snake)
+                if (s.x == food.x && s.y == food.y) return true;
+            return false;
+        }());
+    } else {
+        snake.pop_back();
+    }
+}
+
+void input() {
+    if (!_kbhit()) return;
+    char c = _getch();
+    if (c == 'w' && dir != 2) dir = 0;
+    if (c == 'd' && dir != 3) dir = 1;
+    if (c == 's' && dir != 0) dir = 2;
+    if (c == 'a' && dir != 1) dir = 3;
+}
+
+int main() {
+    init();
+    while (!gameOver) {
+        input();
+        update();
+        draw();
+        Sleep(100);
+    }
+
+    SetConsoleCursorPosition(hConsole, {0, (SHORT)(H + 3)});
+    cout << "游戏结束！最终得分：" << score << endl;
+    return 0;
+}
